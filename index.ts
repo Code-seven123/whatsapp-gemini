@@ -13,32 +13,8 @@ import WaSocket, {
 import { Boom } from '@hapi/boom'
 import NodeCache from 'node-cache'
 import P from 'pino'
-import { GoogleGenerativeAI } from "@google/generative-ai"
-import * as dotenv from "dotenv"
-dotenv.config()
-
-interface Data  {
-  id?: string | null | undefined,
-  personalId?: string | null | undefined,
-  username?: string | null | undefined,
-  text?: string | null | undefined
-}
-
-interface MessagePart {
-  text: string;
-}
-
-interface Message {
-  role: 'user' | 'model',
-  parts: MessagePart[]
-}
-
-interface MessageGrub {
-  groupId: string;
-  messages: Message[];
-}
-
-const conversations: MessageGrub[] = [];
+import { type Data } from "./src/mytypes"
+import { generateResponse } from "./src/myfunc"
 
 const logger = P({
   timestamp: () => `,"time":"${new Date().toJSON()}"`,
@@ -54,56 +30,6 @@ store?.readFromFile('./WA_STORE.json')
 setInterval(() => {
 	store?.writeToFile('./WA_STORE.json')
 }, 10_000)
-const modelName = "gemini-1.5-flash"
-const AI = new GoogleGenerativeAI(process.env.API_KEY)
-const aiModel = AI.getGenerativeModel({ model: modelName })
-
-function addMessageToGroup(groupId: string, text: string) {
-  const conversationGroup = conversations.find(group => group.groupId === groupId)
-  if (conversationGroup) {
-    conversationGroup.messages.push({
-      role: 'user',
-      parts: [{ text: text }]
-    })
-  } else {
-    // Jika grup belum ada, buat grup baru
-    conversations.push({
-      groupId,
-      messages: [{
-        role: 'user',
-        parts: [{ text: text }]
-      }]
-    })
-  }
-}
-
-async function generateResponse(groupId: string, newMessageText: string) {
-  const conversationGroup = conversations.find(group => group.groupId === groupId)
-  if (!conversationGroup) {
-    console.log('Group not found! Creating new group')
-    addMessageToGroup(groupId, newMessageText)
-    console.log(`Sukses membuat grub baru dengan ID: ${groupId}`)
-    return "retry"
-  }
-  try {
-    conversationGroup.messages.push({
-      role: 'model',
-      parts: [{ text: "Gunakan bahasa indonesia dan semanusia mungkin" }]
-    })
-    const aiRoom = await aiModel.startChat({
-      history: conversationGroup.messages
-    })
-    const response = aiRoom.sendMessage(newMessageText)
-    const aiReply = (await response).response.text()!
-    conversationGroup.messages.push({
-      role: 'user',
-      parts: [{ text: newMessageText }]
-    })
-    return aiReply.trim()
-  } catch (error) {
-    throw error;
-  }
-}
 
 const WA = async () => {
   const { state, saveCreds } = await useMultiFileAuthState('sessions')
